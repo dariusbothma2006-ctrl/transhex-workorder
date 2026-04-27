@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trans Hex Master | v25.3.38</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background: white !important; color: black !important; margin: 0; padding: 0; }
+            #mainApp, #loginScreen, nav, .no-print, .action-btns { display: none !important; }
+            #printArea { display: block !important; width: 100%; height: 100%; }
+            .a4-page { border: none !important; box-shadow: none !important; margin: 0 !important; width: 100% !important; height: 100vh !important; padding: 15mm !important; }
+        }
+
+        #mainApp, #settingsView, #archiveView, #printArea { display: none; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .nav-active { background-color: #2563eb !important; color: white !important; }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .safety-box:checked + label { color: #3b82f6; font-weight: 900; }
+        
+        /* New Data Governance Styles */
+        .selector-chip:checked + label { background-color: #2563eb; color: white; border-color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-blue-500/30">
+
+    <div id="loginScreen" class="fixed inset-0 flex items-center justify-center bg-slate-950 z-[100] p-4">
+        <div class="bg-slate-900 p-10 lg:p-16 rounded-[3rem] border border-slate-800 w-full max-w-lg shadow-2xl text-center">
+            <h1 class="text-6xl font-black text-blue-600 italic tracking-tighter uppercase mb-2">TRANS HEX</h1>
+            <p class="text-[10px] font-bold text-slate-500 tracking-[0.3em] uppercase mb-10">Maintenance Management System</p>
+            <div class="space-y-4">
+                <input type="text" id="username" placeholder="USER ID" class="w-full bg-slate-950 border border-slate-800 rounded-2xl p-5 text-white outline-none focus:border-blue-600 uppercase font-bold text-sm">
+                <input type="password" id="password" placeholder="PASSCODE" class="w-full bg-slate-950 border border-slate-800 rounded-2xl p-5 text-white outline-none focus:border-blue-600 text-sm">
+                <div class="flex items-center justify-center gap-3 py-2">
+                    <input type="checkbox" id="rememberMe" class="w-4 h-4 accent-blue-600 cursor-pointer">
+                    <label for="rememberMe" class="text-[11px] font-black text-slate-500 uppercase cursor-pointer hover:text-slate-300">Remember Terminal</label>
+                </div>
+                <button onclick="attemptLogin()" class="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Establish Connection</button>
+            </div>
+            <p id="loginError" class="text-red-500 text-[10px] font-black uppercase mt-6 hidden tracking-widest">Access Denied</p>
+        </div>
+    </div>
+
+    <div id="printArea" class="hidden"></div>
+
+    <div id="mainApp" class="container mx-auto p-4 lg:p-10">
+        <header class="mb-12 flex flex-col md:flex-row justify-between items-end gap-6 no-print">
+            <div>
+                <h1 class="text-5xl font-black italic uppercase text-white tracking-tighter">TRANS HEX</h1>
+                <div class="flex items-center gap-3 mt-2">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <p id="activeUserDisplay" class="text-[11px] font-black text-blue-500 uppercase tracking-widest">Terminal: OFFLINE</p>
+                </div>
+            </div>
+            <nav class="flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-2xl">
+                <button id="btn-orders" onclick="showTab('orders')" class="nav-btn px-8 py-3 rounded-xl font-black text-[11px] uppercase transition-all hover:bg-slate-800">Live Logs</button>
+                <button id="btn-archive" onclick="showTab('archive')" class="nav-btn px-8 py-3 rounded-xl font-black text-[11px] uppercase transition-all hover:bg-slate-800">Archive</button>
+                <button id="btn-settings" onclick="showTab('settings')" class="nav-btn px-8 py-3 rounded-xl font-black text-[11px] uppercase transition-all text-orange-500 hover:bg-slate-800">Registry</button>
+                <button onclick="logout()" class="px-6 py-3 rounded-xl font-black text-[11px] uppercase text-red-500 hover:bg-red-500/10">Lock</button>
+            </nav>
+        </header>
+
+        <div id="ordersView" class="grid grid-cols-1 xl:grid-cols-12 gap-10">
+            <div class="xl:col-span-4 no-print">
+                <div class="bg-slate-900 p-8 rounded-[3rem] border border-slate-800 space-y-6 shadow-2xl sticky top-10">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                        <span id="currentWONum" class="text-lg font-black text-blue-500 uppercase italic">WO-000</span>
+                        <div class="flex flex-col items-end">
+                            <label class="text-[9px] font-black text-slate-600 uppercase mb-1">Start Date</label>
+                            <input type="date" id="liveStartDate" class="bg-slate-950 text-white font-bold text-[10px] px-2 py-1 rounded border border-slate-800 outline-none">
+                        </div>
+                    </div>
+                    <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Safety Measures</h3>
+                        <div class="grid grid-cols-1 gap-3">
+                            <div class="flex items-center gap-3"><input type="checkbox" id="s1" class="safety-box w-4 h-4 accent-blue-600"><label for="s1" class="text-[10px] font-bold text-slate-400 uppercase">PPE Verified</label></div>
+                            <div class="flex items-center gap-3"><input type="checkbox" id="s2" class="safety-box w-4 h-4 accent-blue-600"><label for="s2" class="text-[10px] font-bold text-slate-400 uppercase">LOTO / Isolation</label></div>
+                            <div class="flex items-center gap-3"><input type="checkbox" id="s3" class="safety-box w-4 h-4 accent-blue-600"><label for="s3" class="text-[10px] font-bold text-slate-400 uppercase">Tools Checked</label></div>
+                            <div class="flex items-center gap-3"><input type="checkbox" id="s4" class="safety-box w-4 h-4 accent-blue-600"><label for="s4" class="text-[10px] font-bold text-slate-400 uppercase">Risk Assessment</label></div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <select id="dept" onchange="updateDropdowns()" class="bg-slate-950 p-4 rounded-2xl text-[11px] font-black text-blue-400 border border-slate-800 outline-none"><option value="Plant">Plant</option><option value="Workshop">Workshop</option></select>
+                            <select id="priority" class="bg-slate-950 p-4 rounded-2xl text-[11px] font-black text-slate-400 border border-slate-800 outline-none"><option value="Normal">Normal</option><option value="Urgent">Urgent</option><option value="Emergency">Emergency</option></select>
+                        </div>
+                        <input type="text" id="equipSearch" oninput="updateDropdowns()" placeholder="Search Assets..." class="w-full bg-slate-950 p-4 rounded-2xl text-[11px] border border-slate-800 text-white outline-none">
+                        <select id="equipment" class="w-full bg-slate-950 p-4 rounded-2xl text-[11px] border border-slate-800 text-white font-bold outline-none"></select>
+                        <select id="responsible" class="w-full bg-slate-950 p-4 rounded-2xl text-[11px] border border-slate-800 text-white font-bold outline-none"></select>
+                    </div>
+                    <textarea id="jobDesc" placeholder="Scope of Work..." class="w-full bg-slate-950 p-5 rounded-2xl text-[11px] h-32 border border-slate-800 text-white outline-none resize-none"></textarea>
+                    <button onclick="submitOrder()" class="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all">Commit to Live Log</button>
+                </div>
+            </div>
+            <div class="xl:col-span-8 no-print">
+                <div class="bg-slate-900 rounded-[3rem] border border-slate-800 overflow-hidden shadow-2xl">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-950 text-slate-500 text-[10px] font-black uppercase italic border-b border-slate-800">
+                            <tr><th class="p-8">Work Order</th><th class="p-8">Asset & Progress</th><th class="p-8 text-right">Ops</th></tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-800/50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="archiveView" class="no-print">
+            <div class="bg-slate-900 rounded-[3rem] border border-slate-800 overflow-hidden shadow-2xl">
+                <div class="p-8 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+                    <h2 class="text-xl font-black italic text-emerald-500 uppercase">Archive</h2>
+                    <button onclick="clearArchive()" class="text-red-500 text-[10px] font-black uppercase border border-red-500/20 px-4 py-2 rounded-xl">Purge History</button>
+                </div>
+                <table class="w-full text-left"><tbody id="archiveTableBody" class="divide-y divide-slate-800/50"></tbody></table>
+            </div>
+        </div>
+
+        <div id="settingsView" class="no-print space-y-10">
+            
+            <div class="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
+                <div class="flex justify-between items-start mb-8">
+                    <div>
+                        <h2 class="text-2xl font-black italic uppercase text-orange-500 leading-none">Data Governance</h2>
+                        <p class="text-[10px] font-black text-slate-500 uppercase mt-2">Select modules for synchronization</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="selectiveExport()" class="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-2xl font-black text-[11px] uppercase transition-all shadow-lg">Export Selected</button>
+                        <label class="bg-emerald-600 hover:bg-emerald-500 px-8 py-4 rounded-2xl font-black text-[11px] uppercase cursor-pointer transition-all shadow-lg">
+                            Import File
+                            <input type="file" id="importFile" class="hidden" onchange="selectiveImport(event)">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="relative">
+                        <input type="checkbox" id="sel_fleet" class="selector-chip hidden" checked>
+                        <label for="sel_fleet" class="block bg-slate-950 border border-slate-800 p-6 rounded-[2rem] text-center cursor-pointer transition-all">
+                            <span class="block text-[10px] font-black uppercase opacity-50 mb-1">Module 01</span>
+                            <span class="text-xs font-black uppercase">Fleet Registry</span>
+                        </label>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" id="sel_staff" class="selector-chip hidden" checked>
+                        <label for="sel_staff" class="block bg-slate-950 border border-slate-800 p-6 rounded-[2rem] text-center cursor-pointer transition-all">
+                            <span class="block text-[10px] font-black uppercase opacity-50 mb-1">Module 02</span>
+                            <span class="text-xs font-black uppercase">Personnel</span>
+                        </label>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" id="sel_logs" class="selector-chip hidden" checked>
+                        <label for="sel_logs" class="block bg-slate-950 border border-slate-800 p-6 rounded-[2rem] text-center cursor-pointer transition-all">
+                            <span class="block text-[10px] font-black uppercase opacity-50 mb-1">Module 03</span>
+                            <span class="text-xs font-black uppercase">Live Logs</span>
+                        </label>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" id="sel_arc" class="selector-chip hidden" checked>
+                        <label for="sel_arc" class="block bg-slate-950 border border-slate-800 p-6 rounded-[2rem] text-center cursor-pointer transition-all">
+                            <span class="block text-[10px] font-black uppercase opacity-50 mb-1">Module 04</span>
+                            <span class="text-xs font-black uppercase">Archive</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 p-10 rounded-[3rem] border border-slate-800">
+                <h2 class="text-2xl font-black italic uppercase text-blue-500 mb-8">Active Session Monitor</h2>
+                <div id="userStatusBoard" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div class="bg-slate-900 p-10 rounded-[3rem] border border-slate-800">
+                    <h2 class="text-2xl font-black italic uppercase text-blue-500 mb-8">Fleet Registry</h2>
+                    <div class="flex gap-3 mb-8">
+                        <select id="regDept" class="bg-slate-950 p-4 rounded-xl text-[11px] border border-slate-800"><option value="Plant">Plant</option><option value="Workshop">Workshop</option></select>
+                        <input type="text" id="newEquipName" placeholder="Asset Name..." class="flex-1 bg-slate-950 p-4 rounded-xl text-[11px] border border-slate-800 text-white outline-none">
+                        <button onclick="addRegistryItem('equip')" class="bg-blue-600 px-8 rounded-xl font-black text-[11px] uppercase">Add</button>
+                    </div>
+                    <div id="equipList" class="space-y-2 max-h-80 overflow-y-auto custom-scroll pr-2"></div>
+                </div>
+                <div class="bg-slate-900 p-10 rounded-[3rem] border border-slate-800">
+                    <h2 class="text-2xl font-black italic uppercase text-emerald-500 mb-8">Personnel</h2>
+                    <div class="flex gap-3 mb-8">
+                        <input type="text" id="newStaffName" placeholder="Full Name..." class="flex-1 bg-slate-950 p-4 rounded-xl text-[11px] border border-slate-800 text-white outline-none">
+                        <button onclick="addRegistryItem('staff')" class="bg-emerald-600 px-8 rounded-xl font-black text-[11px] uppercase">Add</button>
+                    </div>
+                    <div id="staffList" class="space-y-2 max-h-80 overflow-y-auto custom-scroll pr-2"></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 flex justify-center gap-6">
+                <button onclick="saveRegistry()" class="bg-blue-600 px-20 py-5 rounded-2xl font-black uppercase text-xs shadow-xl">Save Registry</button>
+                <button onclick="factoryReset()" class="bg-red-900/10 text-red-500 border border-red-500/20 px-20 py-5 rounded-2xl font-black uppercase text-xs">Soft Factory Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_EQUIP = { "Plant": ["Primary Crusher 01"], "Workshop": ["Service Truck 04"] };
+        const DEFAULT_STAFF = ["Neville Greeff", "David Jordaan Jr", "David Jordaan Snr", "Brian Bothma", "Walter Marthinus"];
+        const USERS = { 
+            "davidsnr": { pass: "trans701", role: "Manager" }, 
+            "davidjnr": { pass: "trans702", role: "Electrician" }, 
+            "neville": { pass: "trans703", role: "Artisan" }, 
+            "brian": { pass: "trans704", role: "Plant Supervisor" }, 
+            "walter": { pass: "trans705", role: "X-ray Technician" }, 
+            "admin": { pass: "transadmin", role: "System Administrator" } 
+        };
+
+        let masterEquip = JSON.parse(localStorage.getItem('tx_fleet_registry')) || DEFAULT_EQUIP;
+        let masterStaff = JSON.parse(localStorage.getItem('tx_staff_registry')) || DEFAULT_STAFF;
+        let currentUser = null;
+
+        window.onload = () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('liveStartDate').value = today;
+            if(sessionStorage.getItem('tx_session_token')) { 
+                currentUser = sessionStorage.getItem('tx_session_token'); 
+                updateUserHeartbeat(currentUser);
+                enterDashboard(); 
+            }
+            setInterval(renderUserStatus, 5000);
+        };
+
+        function attemptLogin() {
+            const u = document.getElementById('username').value.toLowerCase().trim(), p = document.getElementById('password').value.trim();
+            if (USERS[u] && USERS[u].pass === p) { 
+                currentUser = u; 
+                sessionStorage.setItem('tx_session_token', u); 
+                updateUserHeartbeat(u);
+                enterDashboard(); 
+            }
+            else { document.getElementById('loginError').classList.remove('hidden'); }
+        }
+
+        function updateUserHeartbeat(user) {
+            let sessionMap = JSON.parse(localStorage.getItem('tx_active_sessions') || '{}');
+            sessionMap[user] = Date.now();
+            localStorage.setItem('tx_active_sessions', JSON.stringify(sessionMap));
+        }
+
+        function renderUserStatus() {
+            if(!currentUser) return;
+            updateUserHeartbeat(currentUser);
+            const sessionMap = JSON.parse(localStorage.getItem('tx_active_sessions') || '{}');
+            const board = document.getElementById('userStatusBoard');
+            if(!board) return;
+            board.innerHTML = Object.keys(USERS).map(u => {
+                const lastSeen = sessionMap[u] || 0;
+                const isActive = (Date.now() - lastSeen) < 15000;
+                return `
+                    <div class="bg-slate-950 p-5 rounded-2xl border ${isActive ? 'border-emerald-500/30' : 'border-slate-800'} flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black uppercase text-slate-500 tracking-widest">ID: ${u}</p>
+                            <p class="text-xs font-black text-white uppercase">${USERS[u].role}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="h-2 w-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}"></span>
+                            <span class="text-[9px] font-black uppercase ${isActive ? 'text-emerald-500' : 'text-slate-500'}">${isActive ? 'Active' : 'Offline'}</span>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function enterDashboard() {
+            document.getElementById('loginScreen').style.display = "none";
+            document.getElementById('mainApp').style.display = "block";
+            const role = USERS[currentUser].role;
+            document.getElementById('activeUserDisplay').innerText = `User: ${currentUser.toUpperCase()} (${role}) [ACTIVE]`;
+            updateDropdowns(); loadOrders(); renderRegistry(); showTab('orders'); renderUserStatus();
+        }
+
+        function logout() { 
+            let sessionMap = JSON.parse(localStorage.getItem('tx_active_sessions') || '{}');
+            delete sessionMap[currentUser];
+            localStorage.setItem('tx_active_sessions', JSON.stringify(sessionMap));
+            sessionStorage.removeItem('tx_session_token'); 
+            location.reload(); 
+        }
+
+        // --- SELECTIVE DATA GOVERNANCE LOGIC ---
+        
+        function selectiveExport() {
+            const exportPkg = { 
+                timestamp: new Date().toISOString(),
+                terminal_v: "25.3.38"
+            };
+            
+            let count = 0;
+            if(document.getElementById('sel_fleet').checked) { exportPkg.registry = masterEquip; count++; }
+            if(document.getElementById('sel_staff').checked) { exportPkg.personnel = masterStaff; count++; }
+            if(document.getElementById('sel_logs').checked) { 
+                exportPkg.live_logs = JSON.parse(localStorage.getItem('tx_live_logs') || '[]'); 
+                exportPkg.counter = localStorage.getItem('tx_wo_counter') || '0';
+                count++; 
+            }
+            if(document.getElementById('sel_arc').checked) { exportPkg.archive = JSON.parse(localStorage.getItem('tx_archives') || '[]'); count++; }
+
+            if(count === 0) return alert("Select at least one module to export.");
+
+            const blob = new Blob([JSON.stringify(exportPkg, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `TransHex_Selective_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        function selectiveImport(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    let report = "IMPORT RESULTS:\n";
+                    
+                    if(document.getElementById('sel_fleet').checked && data.registry) {
+                        localStorage.setItem('tx_fleet_registry', JSON.stringify(data.registry));
+                        report += "- Fleet Registry Updated\n";
+                    }
+                    if(document.getElementById('sel_staff').checked && data.personnel) {
+                        localStorage.setItem('tx_staff_registry', JSON.stringify(data.personnel));
+                        report += "- Personnel List Updated\n";
+                    }
+                    if(document.getElementById('sel_logs').checked && data.live_logs) {
+                        localStorage.setItem('tx_live_logs', JSON.stringify(data.live_logs));
+                        localStorage.setItem('tx_wo_counter', data.counter || '0');
+                        report += "- Live Logs & WO Counter Restored\n";
+                    }
+                    if(document.getElementById('sel_arc').checked && data.archive) {
+                        localStorage.setItem('tx_archives', JSON.stringify(data.archive));
+                        report += "- Archive Restored\n";
+                    }
+
+                    alert(report + "\nTerminal refreshing...");
+                    location.reload();
+                } catch(err) { alert("ERROR: Critical file failure."); }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- CORE REGISTRY LOGIC ---
+
+        function renderRegistry() {
+            const eList = document.getElementById('equipList'), sList = document.getElementById('staffList');
+            eList.innerHTML = Object.entries(masterEquip).map(([dept, items]) => items.map(item => `<div class="flex justify-between bg-slate-950 p-4 rounded-xl border border-slate-800 mb-1"><span class="text-[12px] font-black uppercase text-white">${dept}: ${item}</span><button onclick="removeRegistryItem('equip', '${dept}', '${item}')" class="text-red-600 font-black text-[10px]">DEL</button></div>`).join('')).join('');
+            sList.innerHTML = masterStaff.map(s => `<div class="flex justify-between bg-slate-950 p-4 rounded-xl border border-slate-800 mb-1"><span class="text-[12px] font-black uppercase text-white">${s}</span><button onclick="removeRegistryItem('staff', null, '${s}')" class="text-red-600 font-black text-[10px]">DEL</button></div>`).join('');
+        }
+
+        function addRegistryItem(type) {
+            if(type === 'equip') {
+                const d = document.getElementById('regDept').value, n = document.getElementById('newEquipName').value.trim();
+                if(n) { if(!masterEquip[d]) masterEquip[d] = []; masterEquip[d].push(n); document.getElementById('newEquipName').value = ""; renderRegistry(); }
+            } else {
+                const n = document.getElementById('newStaffName').value.trim();
+                if(n) { masterStaff.push(n); document.getElementById('newStaffName').value = ""; renderRegistry(); }
+            }
+        }
+
+        function removeRegistryItem(type, dept, name) {
+            if(type === 'equip') masterEquip[dept] = masterEquip[dept].filter(i => i !== name);
+            else masterStaff = masterStaff.filter(i => i !== name);
+            renderRegistry();
+        }
+
+        function saveRegistry() {
+            localStorage.setItem('tx_fleet_registry', JSON.stringify(masterEquip));
+            localStorage.setItem('tx_staff_registry', JSON.stringify(masterStaff));
+            alert("Registry Synced to Browser Storage.");
+        }
+
+        function factoryReset() { 
+            if(confirm("Clear all logs and reset WO counter? (Fleet and Personnel will be saved)")) { 
+                localStorage.removeItem('tx_live_logs');
+                localStorage.removeItem('tx_archives');
+                localStorage.removeItem('tx_wo_counter');
+                location.reload(); 
+            } 
+        }
+
+        // --- WORK ORDER ENGINE ---
+
+        function submitOrder() {
+            const checks = Array.from(document.querySelectorAll('.safety-box'));
+            if (!checks.some(b => b.checked)) return alert("Verify Safety Measures.");
+            let count = parseInt(localStorage.getItem('tx_wo_counter') || '0') + 1;
+            const chosenDate = document.getElementById('liveStartDate').value;
+            const order = {
+                id: Date.now(), wo: `WO-${count}`, num: count,
+                dept: document.getElementById('dept').value,
+                equip: document.getElementById('equipment').value, resp: document.getElementById('responsible').value,
+                desc: document.getElementById('jobDesc').value, status: 'IN PROGRESS',
+                startDate: chosenDate ? new Date(chosenDate).toLocaleDateString() : new Date().toLocaleDateString(),
+                startDateISO: chosenDate, endDate: 'PENDING', priority: document.getElementById('priority').value
+            };
+            let logs = JSON.parse(localStorage.getItem('tx_live_logs') || '[]');
+            logs.unshift(order); localStorage.setItem('tx_live_logs', JSON.stringify(logs));
+            localStorage.setItem('tx_wo_counter', count);
+            checks.forEach(b => b.checked = false); document.getElementById('jobDesc').value = "";
+            loadOrders(); updateDropdowns();
+        }
+
+        function loadOrders() {
+            const logs = JSON.parse(localStorage.getItem('tx_live_logs') || '[]'), arcs = JSON.parse(localStorage.getItem('tx_archives') || '[]');
+            document.getElementById('tableBody').innerHTML = logs.map(o => `
+                <tr class="border-b border-slate-800/50">
+                    <td class="p-8"><span class="text-xl font-black ${o.priority === 'Emergency' ? 'text-red-500' : 'text-blue-500'} italic">#${o.wo}</span></td>
+                    <td class="p-8">
+                        <div class="text-sm font-black text-white uppercase">${o.equip}</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase">${o.resp} | ${o.dept}</div>
+                        <div class="flex items-center gap-2 mt-2">
+                             <input type="date" value="${o.startDateISO || ''}" onchange="updateLiveDate(${o.id}, this.value)" class="bg-transparent text-blue-500 text-[10px] font-black border-b border-blue-900 outline-none">
+                             <span class="bg-blue-600/20 text-blue-500 text-[9px] font-black px-2 py-0.5 rounded uppercase">IN PROGRESS</span>
+                        </div>
+                    </td>
+                    <td class="p-8 text-right space-x-2">
+                        <button onclick="exportWord('${o.id}', false)" class="bg-slate-800 px-3 py-1 text-[9px] font-black rounded uppercase">Doc</button>
+                        <button onclick="printReport('${o.id}', false)" class="bg-slate-800 px-3 py-1 text-[9px] font-black rounded uppercase">Print</button>
+                        <button onclick="closeJob(${o.id})" class="bg-emerald-600 px-3 py-1 text-[9px] font-black rounded uppercase">Finish</button>
+                        <button onclick="deleteOrder(${o.id})" class="bg-red-900/30 text-red-500 px-3 py-1 text-[9px] font-black rounded uppercase">Del</button>
+                    </td>
+                </tr>`).join('');
+
+            document.getElementById('archiveTableBody').innerHTML = arcs.map(a => `
+                <tr class="opacity-70 border-b border-slate-800/50">
+                    <td class="p-8 text-lg font-black italic text-slate-500">#${a.wo}</td>
+                    <td class="p-8">
+                        <div class="text-sm font-black text-white uppercase">${a.equip}</div>
+                        <div class="text-[10px] text-slate-500 font-bold uppercase">${a.resp} | ${a.dept}</div>
+                        <div class="flex flex-col gap-1 mt-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] text-slate-400 font-black uppercase">Start:</span>
+                                <input type="date" value="${a.startDateISO || ''}" onchange="updateLiveDate(${a.id}, this.value, true)" class="bg-transparent text-blue-400 text-[10px] font-black border-b border-blue-900 outline-none">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] text-slate-400 font-black uppercase">End:</span>
+                                <input type="date" value="${a.endDateISO}" onchange="updateArchiveDate(${a.id}, this.value)" class="bg-transparent text-emerald-400 text-[10px] font-black border-b border-emerald-900 outline-none">
+                                <span class="bg-emerald-600/20 text-emerald-500 text-[9px] font-black px-2 py-0.5 rounded uppercase">COMPLETED</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-8 text-right space-x-2">
+                        <button onclick="exportWord('${a.id}', true)" class="bg-slate-800 px-3 py-1 text-[9px] font-black rounded uppercase">Doc</button>
+                        <button onclick="printReport('${a.id}', true)" class="bg-slate-800 px-3 py-1 text-[9px] font-black rounded uppercase">Print</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function updateLiveDate(id, newDate, inArchive = false) {
+            let listName = inArchive ? 'tx_archives' : 'tx_live_logs';
+            let list = JSON.parse(localStorage.getItem(listName));
+            const idx = list.findIndex(x => x.id == id);
+            list[idx].startDateISO = newDate; 
+            list[idx].startDate = new Date(newDate).toLocaleDateString();
+            localStorage.setItem(listName, JSON.stringify(list));
+            if(inArchive) loadOrders();
+        }
+
+        function updateArchiveDate(id, newDate) {
+            let a = JSON.parse(localStorage.getItem('tx_archives'));
+            const idx = a.findIndex(x => x.id == id);
+            a[idx].endDateISO = newDate; a[idx].endDate = new Date(newDate).toLocaleDateString();
+            localStorage.setItem('tx_archives', JSON.stringify(a));
+        }
+
+        function closeJob(id) {
+            let logs = JSON.parse(localStorage.getItem('tx_live_logs')), arcs = JSON.parse(localStorage.getItem('tx_archives') || '[]');
+            const idx = logs.findIndex(x => x.id == id);
+            const item = logs.splice(idx, 1)[0];
+            item.status = 'COMPLETED'; item.endDateISO = new Date().toISOString().split('T')[0]; item.endDate = new Date().toLocaleDateString();
+            arcs.unshift(item); localStorage.setItem('tx_live_logs', JSON.stringify(logs)); localStorage.setItem('tx_archives', JSON.stringify(arcs));
+            loadOrders();
+        }
+
+        function deleteOrder(id) {
+            if(!confirm("Trash Entry?")) return;
+            let logs = JSON.parse(localStorage.getItem('tx_live_logs') || '[]');
+            let currentCount = parseInt(localStorage.getItem('tx_wo_counter') || '0');
+            const itemToDelete = logs.find(x => x.id == id);
+            if(itemToDelete && itemToDelete.num === currentCount) {
+                localStorage.setItem('tx_wo_counter', currentCount - 1);
+            }
+            localStorage.setItem('tx_live_logs', JSON.stringify(logs.filter(x => x.id != id)));
+            loadOrders(); 
+            updateDropdowns();
+        }
+
+        function clearArchive() { if(confirm("Purge Archive?")) { localStorage.removeItem('tx_archives'); loadOrders(); } }
+
+        function getTSR_Template(o) {
+            const statusLabel = o.status === 'COMPLETED' ? 'COMPLETED' : 'IN PROGRESS';
+            return `
+                <div class="a4-page" style="font-family: Arial, sans-serif; padding: 20mm; border: 10px solid #000; color: #000; background: #fff; width: 210mm; height: 297mm; margin: auto; box-sizing: border-box; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 12px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
+                        <div><h1 style="margin:0; font-size: 45px; font-weight: 900; font-style: italic; line-height: 1;">TRANS HEX</h1><p style="margin:0; font-weight: 900; letter-spacing: 5px; color: #333; font-size: 12px;">TECHNICAL SERVICE REPORT</p></div>
+                        <div style="text-align: right;"><h2 style="margin:0; font-size: 28px; font-weight: 900;">${o.wo}</h2><p style="margin:0; background: #000; color:#fff; font-weight: 900; padding: 3px 10px; font-size: 12px; display: inline-block;">${statusLabel}</p></div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                        <tr><td style="padding: 10px; border: 3px solid #000; background: #f0f0f0; font-weight: 900; width: 30%;">DEPARTMENT</td><td style="padding: 10px; border: 3px solid #000; font-weight: 900; font-size: 15px;">${o.dept.toUpperCase()}</td></tr>
+                        <tr><td style="padding: 10px; border: 3px solid #000; background: #f0f0f0; font-weight: 900;">ASSET / EQUIPMENT</td><td style="padding: 10px; border: 3px solid #000; font-weight: 900; font-size: 15px;">${o.equip.toUpperCase()}</td></tr>
+                        <tr><td style="padding: 10px; border: 3px solid #000; background: #f0f0f0; font-weight: 900;">RESPONSIBLE TECHNICIAN</td><td style="padding: 10px; border: 3px solid #000; font-weight: bold;">${o.resp.toUpperCase()}</td></tr>
+                        <tr><td style="padding: 10px; border: 3px solid #000; background: #f0f0f0; font-weight: 900;">REPORTING PERIOD</td><td style="padding: 10px; border: 3px solid #000; font-weight: bold;">START: ${o.startDate} &nbsp;|&nbsp; END: ${o.endDate}</td></tr>
+                    </table>
+                    <div style="flex-grow: 1; border: 4px solid #000; padding: 15px; background: #fafafa; margin-bottom: 30px;">
+                        <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 900; border-bottom: 3px solid #000; display: inline-block;">DETAILED WORK SCOPE</h3>
+                        <p style="font-size: 14px; line-height: 1.4; white-space: pre-wrap;">${o.desc || "Standard maintenance procedure conducted."}</p>
+                    </div>
+                    <div style="display: flex; justify-content: center; margin-top: auto; padding-bottom: 40px;">
+                        <div style="width: 60%; border-top: 3px solid #000; text-align: center; font-weight: 900; font-size: 13px; padding-top: 10px;">RESPONSIBLE PERSON SIGNATURE</div>
+                    </div>
+                    <div style="text-align: center; border-top: 1px solid #ddd; padding-top: 5px;"><p style="margin:0; font-size: 9px; font-weight: 900; color: #666;">TRANS HEX MASTER v25.3.38 | OFFICIAL DOCUMENT</p></div>
+                </div>`;
+        }
+
+        function printReport(id, isA) {
+            const list = isA ? JSON.parse(localStorage.getItem('tx_archives')) : JSON.parse(localStorage.getItem('tx_live_logs'));
+            const o = list.find(x => x.id == id);
+            document.getElementById('printArea').innerHTML = getTSR_Template(o); window.print();
+        }
+
+        function exportWord(id, isA) {
+            const list = isA ? JSON.parse(localStorage.getItem('tx_archives')) : JSON.parse(localStorage.getItem('tx_live_logs'));
+            const o = list.find(x => x.id == id);
+            const content = `<html><head><meta charset="utf-8"></head><body>${getTSR_Template(o)}</body></html>`;
+            const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
+            const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${o.wo}_Report.doc`; link.click();
+        }
+
+        function updateDropdowns() {
+            const dept = document.getElementById('dept').value, q = document.getElementById('equipSearch').value.toLowerCase();
+            const filtered = (masterEquip[dept] || []).filter(item => item.toLowerCase().includes(q));
+            document.getElementById('equipment').innerHTML = filtered.map(i => `<option value="${i}">${i}</option>`).join('');
+            document.getElementById('responsible').innerHTML = masterStaff.map(i => `<option value="${i}">${i}</option>`).join('');
+            document.getElementById('currentWONum').innerText = `WO-${parseInt(localStorage.getItem('tx_wo_counter') || '0') + 1}`;
+        }
+
+        function showTab(t) {
+            ['orders', 'archive', 'settings'].forEach(id => {
+                document.getElementById(id + 'View').style.display = (id === t) ? (id === 'orders' ? 'grid' : 'block') : 'none';
+                document.getElementById('btn-' + id).classList.toggle('nav-active', id === t);
+            });
+            if(t === 'settings') renderUserStatus();
+        }
+    </script>
+</body>
+</html>
